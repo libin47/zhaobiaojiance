@@ -1,4 +1,4 @@
-from dbbase import DB_ZBBG, DB_Log
+from dbbase import DB_YX, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
@@ -9,9 +9,11 @@ import random
 import json
 
 
+
+
 source = "河北公共资源服务平台"
-craw_type = "变更"
-urllib = "https://szj.hebei.gov.cn/zbtbfwpt/tender/xxgk/bggg.do"
+craw_type = "意向"
+urllib = "https://szj.hebei.gov.cn/zbtbfwpt/tender/xxgk/zbjhgg.do"
 MAX_DUP = 5 # 监测重复阈值
 MAX_TRY = 3 # 尝试次数阈值
 
@@ -36,7 +38,7 @@ datalib = {
     }
 }
 
-def _check_exist(db:DB_ZBBG, data):
+def _check_exist(db:DB_YX, data):
     count = db.count_source_href(data['source'], data['href'])
     return count>0
 
@@ -46,20 +48,20 @@ def _get_page_number(url):
 
 async def _get_data(db, page:int):
     page_session = SessionPage()
-    print("[招标变更-河北公共资源服务平台-Page:%s]"%(page))
+    print("[招标意向-河北公共资源服务平台-Page:%s]"%(page))
     # 获取具体的数据
     url = urllib
     pdata = datalib[city_cfg]
     pdata["page"] = str(page)
     page_session.post(url, data=pdata)
     rdata = json.loads(page_session.raw_data)
-    datas = rdata['t']['search_Bggg']
+    datas = rdata['t']['search_ZbJhGg']
     data = []
     breaker = ContinuousDupBreaker(max_dup=3)
     for item in datas:
-        href = "https://szj.hebei.gov.cn/zbtbfwpt/infogk/newDetail.do?categoryid=BgGg&infoid=%s&jypt=jypt"%item['tenderbulletincode'] # 获取具体链接
+        href = "https://szj.hebei.gov.cn/zbtbfwpt/infogk/detail.do?categoryid=zbjhgg&infoid=%s&bdcodes=%s&laiyuan=%s"%(item['planbulletincode'], item['bmcode'], item['escapesource']) # 获取具体链接
         title = item['bulletinname']
-        date = datetime.datetime.fromtimestamp(item['bulletinissuetime'] / 1000)
+        date = datetime.datetime.strptime(item['bulletinissuetime'], '%Y-%m-%d %H:%M')
 
         name = item['bulletinname']
         money = ""
@@ -81,10 +83,10 @@ async def _get_data(db, page:int):
             "href": href,
             "date": date,
             "title": title,
-            "money": money,
+            "plan_time": "",
+            "plan_money": money,
             "city": city,
             "area": area,
-            "address": address,
             "classify": classify,
             "people": people,
             "source": source,
@@ -97,10 +99,10 @@ async def _get_data(db, page:int):
 
 async def get_all():
     base_url = urllib
-    print("【招标变更-河北公共资源服务平台】")
+    print("【招标意向-河北公共资源服务平台】")
     # 获取有多少页
     page_num = _get_page_number(base_url)
-    with DB_ZBBG() as db:
+    with DB_YX() as db:
         data = []
         status = ""
         for i in range(page_num):  # 遍历每一页

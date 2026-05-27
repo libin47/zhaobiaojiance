@@ -11,12 +11,16 @@ class ZhaoBiao(Base):
     date = Column(DateTime) # 发布日期
 
     title = Column(String(100), default="") # 标题，例如什么什么公告
+    code = Column(String(100), default="") # 招标编号
     money = Column(String(20), default="") # 预算金额
-    city = Column(String(20)) # 城市，地市
+    city = Column(String(20), default="") # 城市，地市
     area = Column(String(20), default="") # 地区，县区
     address = Column(String(100), default="") # 地址
+    classify = Column(String(100), default="") # 行业
+    purchaseName = Column(String(100), default="公开招标") # 采购方式
 
-    people = Column(String(50)) # 招标人
+
+    people = Column(String(50), default="") # 招标人
     source = Column(String(20)) # 来源，直接来源网站
     source_base = Column(String(20))  # 二级来源，二级来源网站，例如采购网上标注来自【公共服务资源】的，应填【公共服务资源】
     send = Column(Boolean, default=False) # 是否已发送

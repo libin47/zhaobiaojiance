@@ -19,11 +19,13 @@ requirement.txt里面可能不全，运行报错就装什么依赖吧
 # 已完成情况
 | 网站           | 地址                                    | 招标 | 意向 | 招标变更 | 意向变更 | 中标 |
 |--------------|---------------------------------------|----|----|------|------|----|
-| 河北政府采购网      | http://www.ccgp-hebei.gov.cn/zjk/zjk/ |    | √  |      |      |    |
-| 招标通          | http://www.hebztb.com                 |    | ×  |      | ×    |    |
-| 招采进宝河北专区     | http://hb.zcjb.com.cn                 |    | ×  |      | ×    |    |
-| 河北招标投标公共服务平台 | http://www.hebeieb.com                |    |    |      |      |    |
+| 河北政府采购网      | http://www.ccgp-hebei.gov.cn/zjk/zjk/ | √  | √  |  √   |   √  |    |
+| 招标通          | http://www.hebztb.com                 | √  | ×  |      | ×    |    |
+| 招采进宝河北专区     | http://hb.zcjb.com.cn                 |   √ | ×  |      | ×    |    |
+| 河北招标投标公共服务平台 | http://www.hebeieb.com                |  √ |  √  |  √    |  ×  |    |
 | 大唐商务         | https://www.cdt-ec.com/               |    |    |      |      |    |
+易联供应链 （无地区）
+CEC电子商城（无地区）
 
 
 

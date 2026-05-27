@@ -1,4 +1,4 @@
-from dbbase import DB_ZBBG, DB_Log
+from dbbase import DB_ZB, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
@@ -7,36 +7,16 @@ import asyncio
 import traceback
 import random
 import json
+import time
 
 
-source = "河北公共资源服务平台"
-craw_type = "变更"
-urllib = "https://szj.hebei.gov.cn/zbtbfwpt/tender/xxgk/bggg.do"
+source = "CEC电子采购平台"
+craw_type = "招标"
+urllib = "https://www.cec-ec.com.cn/cms/channel/1xmgg1/index.htm?pageNo="
 MAX_DUP = 5 # 监测重复阈值
 MAX_TRY = 3 # 尝试次数阈值
 
-datalib = {
-    "张家口": {
-        "TimeStr": "",
-        "allDq": "130700",
-        "allHy": "reset1",
-        "AllPtName": "",
-        "KeyType": "ggname",
-        "KeyStr": "",
-        "page": "0",
-    },
-    "雄安": {
-        "TimeStr": "",
-        "allDq": "131400",
-        "allHy": "reset1",
-        "AllPtName": "",
-        "KeyType": "ggname",
-        "KeyStr": "",
-        "page": "0",
-    }
-}
-
-def _check_exist(db:DB_ZBBG, data):
+def _check_exist(db:DB_ZB, data):
     count = db.count_source_href(data['source'], data['href'])
     return count>0
 
@@ -46,29 +26,24 @@ def _get_page_number(url):
 
 async def _get_data(db, page:int):
     page_session = SessionPage()
-    print("[招标变更-河北公共资源服务平台-Page:%s]"%(page))
+    print("[招标公告-CEC电子采购平台-Page:%s]"%(page))
     # 获取具体的数据
-    url = urllib
-    pdata = datalib[city_cfg]
-    pdata["page"] = str(page)
-    page_session.post(url, data=pdata)
-    rdata = json.loads(page_session.raw_data)
-    datas = rdata['t']['search_Bggg']
+    url = urllib + str(page)
+    page_session.get(url)
+    rdata = page_session.eles("@name:li_name")
     data = []
     breaker = ContinuousDupBreaker(max_dup=3)
-    for item in datas:
-        href = "https://szj.hebei.gov.cn/zbtbfwpt/infogk/newDetail.do?categoryid=BgGg&infoid=%s&jypt=jypt"%item['tenderbulletincode'] # 获取具体链接
-        title = item['bulletinname']
-        date = datetime.datetime.fromtimestamp(item['bulletinissuetime'] / 1000)
-
-        name = item['bulletinname']
-        money = ""
-        city = city_cfg
-        address = item['regioncode']
-        people = ""
-        classify = item['tenderprojectclassifycode']
-        area = get_area_byname(title+address)
-        sourcename = item['sourcename'][1:-1]
+    for item in rdata:
+        href = item.ele("tag:a").link # 获取具体链接
+        title = item.ele("tag:span").text.strip()
+        date = datetime.datetime.strptime(item.ele("tag:em").text.strip(), '%Y-%m-%d')
+        name = title
+        if city_cfg in title:
+            city = city_cfg
+            area = get_area_byname(name)
+        else:
+            city = ""
+            area = ""
 
         _ce = _check_exist(db, {"source":source, "href":href })
         if breaker.check(_ce):
@@ -81,14 +56,10 @@ async def _get_data(db, page:int):
             "href": href,
             "date": date,
             "title": title,
-            "money": money,
             "city": city,
             "area": area,
-            "address": address,
-            "classify": classify,
-            "people": people,
             "source": source,
-            "source_base": sourcename,
+            "source_base": source,
             "send": False
         }
         data.append(d)
@@ -97,10 +68,10 @@ async def _get_data(db, page:int):
 
 async def get_all():
     base_url = urllib
-    print("【招标变更-河北公共资源服务平台】")
+    print("【招标公告-CEC电子采购平台】")
     # 获取有多少页
     page_num = _get_page_number(base_url)
-    with DB_ZBBG() as db:
+    with DB_ZB() as db:
         data = []
         status = ""
         for i in range(page_num):  # 遍历每一页
@@ -108,7 +79,7 @@ async def get_all():
             trycount = 0
             while trycount<MAX_TRY:
                 try:
-                    sub_data, status = await _get_data(db, i)
+                    sub_data, status = await _get_data(db, i+1)
                     data.extend(sub_data)
                     break
                 except Exception as e:

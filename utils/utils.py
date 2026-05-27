@@ -1,5 +1,12 @@
+from config import city as city_cfg
+area_lib = {
+    "张家口": ["宣化", "下花园", "万全", "崇礼", "张北", "康保", "沽源", "尚义", "蔚县", "阳原", "怀安", "怀来", "涿鹿", "赤城", "塞北管理区", "察北管理区"],
+    "雄安": ["雄县", "容城县", "安新县"]
+}
 def get_area_byname(name):
-    area_list = ["宣化", "下花园", "万全", "崇礼", "张北", "康保", "沽源", "尚义", "蔚县", "阳原", "怀安", "怀来", "涿鹿", "赤城", "塞北管理区", "察北管理区"]
+    if city_cfg not in area_lib.keys():
+        return ""
+    area_list = area_lib[city_cfg]
     for a in area_list:
         if a in name:
             return a

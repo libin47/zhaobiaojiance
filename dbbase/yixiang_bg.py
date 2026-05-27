@@ -16,6 +16,7 @@ class YiXiangBG(Base):
 
     city = Column(String(20)) # 城市，地市
     area = Column(String(20), default="") # 地区，县区
+    classify = Column(String(100), default="") # 行业
 
     people = Column(String(50)) # 招标人
     source = Column(String(20)) # 来源，直接来源网站

@@ -1,145 +1,241 @@
-﻿from dbbase import DB_YXBG
-import requests
-from bs4 import BeautifulSoup
-import time
-import traceback
+﻿from dbbase import DB_YXBG, DB_Log
+from DrissionPage import SessionPage
 import datetime
+from config import city as city_cfg
+from utils.utils import get_area_byname, ContinuousDupBreaker
+import asyncio
+import traceback
+import random
+import json
 
-head = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-    "Cache-Control": "max-age=0",
-    "Connection": "keep-alive",
-    "Cookie": "yunsuo_session_verify=c36b1e82f4969a52767d7b3763380253",
-    "Host": "www.ccgp-hebei.gov.cn",
-    "If-Modified-Since": "Mon, 14 Nov 2022 07:46:44 GMT",
-    "If-None-Match": "e58b-5ed6970e4235d",
-    "Upgrade-Insecure-Requests": "1",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.42"
-}
+source = "河北政府采购网"
+craw_type = "意向变更"
 urllib = {
-    "张家口": "http://www.ccgp-hebei.gov.cn/zjk/zjk/zfcgyxgg/zfcgyx/",
+    "张家口": "https://www.ccgp-hebei.gov.cn/was5/web/search?&channelid=217003&lanmu=zfcgyxbg&admindivcode=1307&purchaseWay=&procurementcode=&agencyfullname=&PurchaserName=&doctitle=&perpage=50&page=",
+    "雄安": "https://www.ccgp-hebei.gov.cn/was5/web/search?&channelid=217003&lanmu=zfcgyxbg&admindivcode=1399&purchaseWay=&procurementcode=&agencyfullname=&PurchaserName=&doctitle=&perpage=50&page="
 }
-urllib_bg = {
+urllib_old = {
     "张家口": "http://www.ccgp-hebei.gov.cn/zjk/zjk/zfcgyxgg/zfcgyxbg/"
 }
+MAX_DUP = 3 # 监测重复阈值
+MAX_TRY = 3 # 尝试次数阈值
 
 
-def get_info(url):
-    # 获取具体的意向内容
-    result = requests.request("get", url, headers=head)
-    soup = BeautifulSoup(result.content, 'html.parser')
-    spans = soup.find_all("span", id="intentionAnncInfos")
-    if len(spans)>0:
-        text = spans[0].text.strip()
-        result = text.split("#_@_@")
-        title = result[1]
-        return title
+def _check_exist(db:DB_YXBG, data):
+    count = db.count_source_href(data['source'], data['href'])
+    return count>0
+
+def _get_info_biangeng(texts):
+    # 不太好验证，直接写死吧，虽然更不稳固
+    subnum = len(texts[0].split('#_#'))
+    if subnum == 1:
+        title = texts[6]
+        money = texts[8]
+        pltime = texts[9]
+        return [[title, pltime, money]]
     else:
-        return ""
+        result = []
+        for s in range(subnum):
+            title = ""
+            money = ""
+            pltime = ""
+            for i in range(len(texts)):
+                title = texts[i].split('#_#')[s]
+                money = texts[i].split('#_#')[s]
+                pltime = texts[i].split('#_#')[s]
+            result.append([title, pltime, money])
+        return result
+
+def _get_info_zuofei(titles, texts):
+    subnum = len(texts[0].split('#_#'))
+    if subnum == 1:
+        title = ""
+        money = ""
+        pltime = ""
+        for i in range(len(texts)):
+            if titles[i] == "采购项目名称":
+                title = texts[i]
+            if titles[i] == "预算金额（万元）":
+                money = texts[i]
+            if titles[i] == "预计采购时间":
+                pltime = texts[i]
+        return [[title, pltime, money]]
+    else:
+        result = []
+        for s in range(subnum):
+            title = ""
+            money = ""
+            pltime = ""
+            for i in range(len(texts)):
+                if titles[i] == "采购项目名称":
+                    title = texts[i].split('#_#')[s]
+                if titles[i] == "预算金额（万元）":
+                    money = texts[i].split('#_#')[s]
+                if titles[i] == "预计采购时间":
+                    pltime = texts[i].split('#_#')[s]
+            result.append([title, pltime, money])
+        return result
+
+def _get_data_info(url):
+    page_info = SessionPage()
+    page_info.get(url)
+
+    spans_info = page_info.eles('#intentionAnncInfos')
+    texts = spans_info[0].text.strip().split("#_@_@")[:-1]
+    if len(texts)>7:
+        result = _get_info_biangeng(texts)
+        return result
+    else:
+        table_title = page_info.eles('#intentionAnncCancel')
+        titles = table_title[0].text.split()
+        result = _get_info_zuofei(titles, texts)
+        return result
 
 
 
-def get_page_number(url):
-    # 意向数据一般很少，只爬第一页就可以了
+
+
+
+def _get_page_number(url):
     return 1
 
+'''
+# 旧的方式，数据已不全
+async def _get_data(db, page:int):
+    page_session = SessionPage()
+    print("[招标意向-河北政府采购网-Page:%s]"%(page))
+    # 获取具体的数据
+    if page > 0:
+        url = urllib[city_cfg] + "index_%s.html" % page
+    else:
+        url = urllib[city_cfg] + "index.html"
+    page_session.get(url)
+    items = page_session.eles('.list-item-content')
+    data = []
+    breaker = ContinuousDupBreaker(max_dup=3)
+    for item in items:
+        href = item.ele('tag:a').link # 获取具体链接
+        _ce = _check_exist(db, {"source":source, "href":href })
+        if breaker.check(_ce):
+            return data, "重复"
+        elif _ce:
+            continue
+        title = item.ele('tag:a').text
+        dateraw = item.ele('@data-label:发布时间：').text
+        date = datetime.datetime.strptime(dateraw, '%Y-%m-%d')
+        people = item.eles('@data-label:采购人：')[-1].text
+        subinfo = _get_data_info(href)
+        for sub in subinfo:
+            name, plan_time, plan_money = sub
+            city = city_cfg
+            area = get_area_byname(title+name)
+            d = {
+                "name": name,
+                "href": href,
+                "date": date,
+                "title": title,
+                "plan_time": plan_time,
+                "plan_money": plan_money,
+                "city": city,
+                "area": area,
+                "people": people,
+                "source": source,
+                "source_base": source,
+                "send": False
+            }
+            data.append(d)
+        await asyncio.sleep(random.uniform(1.5, 3.5))
+    return data, "完成"
+'''
 
-def get_all(city):
-    base_url = urllib_bg[city]
-    print("招标意向变更爬取……")
-    page_num = get_page_number(base_url)
-    # db
-    db = DB_YXBG()
-    newlist = []
-    for j in range(2):
-        if j==0:
-            print("市级数据")
-        else:
-            print("县级数据")
-        for i in range(page_num):
-            chongfu = False
+async def _get_data(db, page:int):
+    page_session = SessionPage()
+    print("[招标意向变更-河北政府采购网-Page:%s]"%(page))
+    # 获取具体的数据
+    url = urllib[city_cfg] + str(page)
+    page_session.get(url)
+    rdata = json.loads(page_session.raw_data)
+    datas = rdata['data']
+    data = []
+    breaker = ContinuousDupBreaker(max_dup=3)
+    for item in datas[:5]:
+        href = item['docPubUrl'] # 获取具体链接
+        _ce = _check_exist(db, {"source":source, "href":href })
+        if breaker.check(_ce):
+            return data, "重复"
+        elif _ce:
+            continue
+        title = item['docTitle']
+        date = datetime.datetime.strptime(item['docRelTime'], '%Y/%m/%d %H:%M:%S')
+        people = ''
+        subinfo = _get_data_info(href)
+        for sub in subinfo:
+            name, plan_time, plan_money = sub
+            city = city_cfg
+            area = get_area_byname(title+name)
+            d = {
+                "name": name,
+                "href": href,
+                "date": date,
+                "title": title,
+                "plan_time": plan_time,
+                "plan_money": plan_money,
+                "city": city,
+                "area": area,
+                "people": people,
+                "source": source,
+                "source_base": source,
+                "send": False
+            }
+            data.append(d)
+        await asyncio.sleep(random.uniform(1.5, 3.5))
+    return data, "完成"
+
+async def get_all():
+    # 定义获取所有数据的主函数
+    base_url = urllib[city_cfg]  # 从配置中获取基础URL，这里city_cfg应该是某个配置项
+    print("【招标意向变更-河北政府采购网】")  # 打印网站标题信息
+    page_num = _get_page_number(base_url)  # 获取总页数
+    # 获取所有数据
+    with DB_YXBG() as db:
+        data = []
+        status = ""
+        for i in range(page_num):  # 遍历每一页
             trycount = 0
-            maxtry = 5
-            while True:
+            while trycount<MAX_TRY:
                 try:
-                    print("采购网:尝试获取第%s页的数据"%(i+1))
-                    if j==0:
-                        print()
-                        if i>0:
-                            url = base_url + "index_%s.html"%i
-                        else:
-                            url = base_url + "index.html"
-                    else:
-                        if i>0:
-                            url = base_url + "index_1048_%s.html"%i
-                        else:
-                            url = base_url + "index_1048.html"
-                    result = requests.request("get", url)
-                    soup = BeautifulSoup(result.content, 'html.parser')
-                    # table = soup.find_all("table", id="moredingannctable")[0]
-                    # name_a = table.find_all("a", class_="a3") # 名字及链接
-                    # time_td = table.find_all("td", class_="txt1") # 发布时间和单位
-                    # assert len(name_a)==len(time_td) # 二者应该长度相等（都等于50）
-                    # for i in range(len(name_a)):
-                    #     href = base_url+name_a[i]['href'] # [2:]
-                    #     name = get_info(href)
-                    #     title = name_a[i].text.strip()
-                    #     blist = time_td[i].find_all("span")
-                    #     time_all = blist[0].text.strip().split("-")
-                    #     time_year = int(time_all[0].strip())
-                    #     time_month = int(time_all[1].strip())
-                    #     time_day = int(time_all[2].strip())
-                    #     area = blist[1].text.strip()
-                    result = soup.find_all("div", class_="list-item")
-                    for r in result:
-                        href = base_url+r.find("a")['href']
-                        info = get_info(href)
-                        name = info
-                        title = base_url+r.find("a")['title']
-                        blist = r.find_all("span")
-                        time_all = blist[0].text.strip().split("-")
-                        time_year = int(time_all[0].strip())
-                        time_month = int(time_all[1].strip())
-                        time_day = int(time_all[2].strip())
-                        area = blist[3].text.strip()
-                        if db.count_documents_herf("hbcg", href)==0:
-                            d = {
-                                "name": name,
-                                "href": href,
-                                "date": datetime.date(time_year, time_month, time_day),
-                                "title": title,
-                                "area": area,
-                                "source": "hbcg",
-                                "people": "",
-                                "city": city
-                            }
-                            db.insert_one(d)
-                            newlist.append(d)
-                        else:
-                            print("采购网:遇到重复数据")
-                            chongfu = True
-                            break
-                    time.sleep(10)
+                    sub_data, status = await _get_data(db, i+1)
+                    data.extend(sub_data)
                     break
                 except Exception as e:
-                    print(str(e))
+                    with DB_Log() as error_db:
+                        error_data = {
+                            "log_time": datetime.datetime.now(),
+                            "source": source,
+                            "craw_type": craw_type,
+                            "craw_url": urllib[city_cfg],
+                            "log_type": "error",
+                            "log_text": str(e),
+                            "send": False
+                        }
+                        error_db.insert_one(error_data)
                     traceback.print_exc()
                     trycount += 1
-                    if trycount > maxtry:
-                        db.db.close()
-                        return "ERROR!"
-                    time.sleep(100)
-            if chongfu:
+                    await asyncio.sleep(60)
+            if status == "重复":
                 break
-    db.db.close()
-    return newlist
+        # 插入数据库
+        if len(data) > 0:
+            for d in data:
+                db.insert_one_check(d)
 
-
+    return data
 
 
 if __name__ == "__main__":
     # get_all("张家口")
-    bglist = get_all("张家口")
+    # bglist = get_all("张家口")
+    # bglist = get_all()
+    bglist = asyncio.run(get_all())
+    # bglist = _get_data_info("http://www.ccgp-hebei.gov.cn/zjk/zjk_sy/zfcgyxgg/zfcgyxbg/202604/t20260428_2357984.html")
     print(bglist)

@@ -1,4 +1,4 @@
-from dbbase import DB_ZBBG, DB_Log
+from dbbase import DB_ZB, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
@@ -8,35 +8,21 @@ import traceback
 import random
 import json
 
+source = "河北政府采购网"
+craw_type = "公告"
+urllib = {
+    "张家口": "https://www.ccgp-hebei.gov.cn/was5/web/search?&channelid=217003&lanmu=zbggAAAS&admindivcode=1307&purchaseWay=&procurementcode=&agencyfullname=&PurchaserName=&doctitle=&perpage=50&page=",
+    "雄安": "https://www.ccgp-hebei.gov.cn/was5/web/search?&channelid=217003&lanmu=zbggAAAS&admindivcode=1399&purchaseWay=&procurementcode=&agencyfullname=&PurchaserName=&doctitle=&perpage=50&page="
+}
 
-source = "河北公共资源服务平台"
-craw_type = "变更"
-urllib = "https://szj.hebei.gov.cn/zbtbfwpt/tender/xxgk/bggg.do"
+urllib_old = {
+    "张家口": "http://www.ccgp-hebei.gov.cn/was5/web/search?channelid=240117&perpage=50&outlinepage=10&lanmu=zbgg&admindivcode=1307"
+}
 MAX_DUP = 5 # 监测重复阈值
 MAX_TRY = 3 # 尝试次数阈值
 
-datalib = {
-    "张家口": {
-        "TimeStr": "",
-        "allDq": "130700",
-        "allHy": "reset1",
-        "AllPtName": "",
-        "KeyType": "ggname",
-        "KeyStr": "",
-        "page": "0",
-    },
-    "雄安": {
-        "TimeStr": "",
-        "allDq": "131400",
-        "allHy": "reset1",
-        "AllPtName": "",
-        "KeyType": "ggname",
-        "KeyStr": "",
-        "page": "0",
-    }
-}
 
-def _check_exist(db:DB_ZBBG, data):
+def _check_exist(db:DB_ZB, data):
     count = db.count_source_href(data['source'], data['href'])
     return count>0
 
@@ -44,31 +30,28 @@ def _get_page_number(url):
     # 简化处理，只获取前三页
     return 3
 
+
 async def _get_data(db, page:int):
     page_session = SessionPage()
-    print("[招标变更-河北公共资源服务平台-Page:%s]"%(page))
+    print("[招标公告-河北政府采购网-Page:%s]"%(page))
     # 获取具体的数据
-    url = urllib
-    pdata = datalib[city_cfg]
-    pdata["page"] = str(page)
-    page_session.post(url, data=pdata)
+    url = urllib[city_cfg] + str(page)
+    page_session.get(url)
     rdata = json.loads(page_session.raw_data)
-    datas = rdata['t']['search_Bggg']
+    datas = rdata['data']
     data = []
     breaker = ContinuousDupBreaker(max_dup=3)
     for item in datas:
-        href = "https://szj.hebei.gov.cn/zbtbfwpt/infogk/newDetail.do?categoryid=BgGg&infoid=%s&jypt=jypt"%item['tenderbulletincode'] # 获取具体链接
-        title = item['bulletinname']
-        date = datetime.datetime.fromtimestamp(item['bulletinissuetime'] / 1000)
+        href = item['docPubUrl'] # 获取具体链接
+        title = item['docTitle']
+        date = datetime.datetime.strptime(item['docRelTime'], '%Y/%m/%d %H:%M:%S')
 
-        name = item['bulletinname']
+        name = item['docTitle']
         money = ""
         city = city_cfg
-        address = item['regioncode']
-        people = ""
-        classify = item['tenderprojectclassifycode']
-        area = get_area_byname(title+address)
-        sourcename = item['sourcename'][1:-1]
+        address = item['purchaserAddr']
+        people = item['purchaserName']
+        area = get_area_byname(title+people+address)
 
         _ce = _check_exist(db, {"source":source, "href":href })
         if breaker.check(_ce):
@@ -85,10 +68,9 @@ async def _get_data(db, page:int):
             "city": city,
             "area": area,
             "address": address,
-            "classify": classify,
             "people": people,
             "source": source,
-            "source_base": sourcename,
+            "source_base": source,
             "send": False
         }
         data.append(d)
@@ -96,11 +78,12 @@ async def _get_data(db, page:int):
 
 
 async def get_all():
-    base_url = urllib
-    print("【招标变更-河北公共资源服务平台】")
-    # 获取有多少页
-    page_num = _get_page_number(base_url)
-    with DB_ZBBG() as db:
+    # 定义获取所有数据的主函数
+    base_url = urllib[city_cfg]  # 从配置中获取基础URL，这里city_cfg应该是某个配置项
+    print("【招标公告-河北政府采购网】")  # 打印网站标题信息
+    page_num = _get_page_number(base_url)  # 获取总页数
+    # 获取所有数据
+    with DB_ZB() as db:
         data = []
         status = ""
         for i in range(page_num):  # 遍历每一页
@@ -108,7 +91,7 @@ async def get_all():
             trycount = 0
             while trycount<MAX_TRY:
                 try:
-                    sub_data, status = await _get_data(db, i)
+                    sub_data, status = await _get_data(db, i+1)
                     data.extend(sub_data)
                     break
                 except Exception as e:
@@ -117,7 +100,7 @@ async def get_all():
                             "log_time": datetime.datetime.now(),
                             "source": source,
                             "craw_type": craw_type,
-                            "craw_url": urllib,
+                            "craw_url": urllib[city_cfg],
                             "log_type": "error",
                             "log_text": str(e),
                             "send": False
@@ -132,15 +115,13 @@ async def get_all():
         if len(data) > 0:
             for d in data:
                 db.insert_one_check(d)
+
     return data
 
 
-
 if __name__ == "__main__":
-    # get_all("张家口")
     bglist = asyncio.run(get_all())
     print(bglist)
-
 
 
 
