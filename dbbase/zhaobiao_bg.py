@@ -48,3 +48,12 @@ class DB_ZBBG(DBBase):
 
     def close(self):
         self.db.close()
+
+
+    def batch_update_send_true(self, ids):
+        if not ids:
+            return
+        self.db.query(ZhaoBiaoBG) \
+            .filter(ZhaoBiaoBG.id.in_(ids)) \
+            .update({ZhaoBiaoBG.send: True}, synchronize_session=False)
+        self.db.commit()

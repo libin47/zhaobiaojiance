@@ -2,7 +2,7 @@ from dbbase import DB_ZB, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
-from utils.utils import get_area_byname, ContinuousDupBreaker
+from utils.utils import get_area_byname, ContinuousDupBreaker, clear_date
 import asyncio
 import traceback
 import random
@@ -29,7 +29,7 @@ def _get_page_number(url):
 
 async def _get_data(db, page:int, key):
     page_session = SessionPage()
-    print("[招标公告-雄安新区公共资源交易服务平台-Page:%s]"%(page))
+    print("[招标公告-%s-Page:%s]"%(source,page))
     # 获取具体的数据
     url = urllib[key]
     if page>1:
@@ -55,7 +55,7 @@ async def _get_data(db, page:int, key):
         d = {
             "name": name,
             "href": href,
-            "date": date,
+            "date": clear_date(date),
             "title": title,
             "city": city,
             "area": area,
@@ -72,7 +72,7 @@ async def get_all():
     if city_cfg != "雄安":
         return []
     base_url = urllib
-    print("【招标公告-雄安新区公共资源交易服务平台】")
+    print("【招标公告-%s】"%source)
     # 获取有多少页
     page_num = _get_page_number(base_url)
     with DB_ZB() as db:

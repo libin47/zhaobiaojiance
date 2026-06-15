@@ -2,7 +2,7 @@ from dbbase import DB_ZB, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
-from utils.utils import get_area_byname, ContinuousDupBreaker
+from utils.utils import get_area_byname, ContinuousDupBreaker, clear_date
 import asyncio
 import traceback
 import random
@@ -85,7 +85,6 @@ async def _get_data(db, page:int, tp:str):
     data = []
     breaker = ContinuousDupBreaker(max_dup=3)
     for item in datas:
-        print(item)
         name = item['packageName'].strip() if 'packageName' in item.keys() else item['title'].strip()
         href = "https://hb.zcjb.com.cn/cms/hb/webfile/detail/index.html?contentId=" + item['id'] # 获取具体链接
         date = datetime.datetime.strptime(item['publishDate'], '%Y-%m-%d %H:%M:%S')
@@ -104,7 +103,7 @@ async def _get_data(db, page:int, tp:str):
         d = {
             "name": name,
             "href": href,
-            "date": date,
+            "date": clear_date(date),
             "title": title,
             "city": city,
             "area": area,

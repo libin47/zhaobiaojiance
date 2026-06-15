@@ -12,7 +12,7 @@ def send():
 async def _craw_loop():
     result = craw()
     await asyncio.sleep(2)
-    await asyncio.wait_for(_craw_loop(), timeout=5)
+    await _craw_loop()
 
 async def _send_loop():
     result = send()

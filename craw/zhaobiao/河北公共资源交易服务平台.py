@@ -2,38 +2,24 @@ from dbbase import DB_ZB, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
-from utils.utils import get_area_byname, ContinuousDupBreaker
+from utils.utils import get_area_byname, ContinuousDupBreaker, clear_date
 import asyncio
 import traceback
 import random
 import json
 
-
-source = "河北公共资源服务平台"
+# TODO
+source = "河北公共资源交易服务平台"
 craw_type = "招标"
-urllib = "https://szj.hebei.gov.cn/zbtbfwpt/tender/xxgk/zbgg.do"
+# https://szj.hebei.gov.cn/hbggfwpt/jydt/salesPlat.html
+urllib = "https://szj.hebei.gov.cn/inteligentsearchnew/rest/esinteligentsearch/getFullTextDataNew"
 MAX_DUP = 5 # 监测重复阈值
 MAX_TRY = 3 # 尝试次数阈值
 
 datalib = {
-    "张家口": {
-        "TimeStr": "",
-        "allDq": "130700",
-        "allHy": "reset1",
-        "AllPtName": "",
-        "KeyType": "ggname",
-        "KeyStr": "",
-        "page": "0",
-    },
-    "雄安": {
-        "TimeStr": "",
-        "allDq": "131400",
-        "allHy": "reset1",
-        "AllPtName": "",
-        "KeyType": "ggname",
-        "KeyStr": "",
-        "page": "0",
-    }
+    "张家口": {"token":"","pn":0,"rn":10,"sdt":"","edt":"","wd":" ","inc_wd":"","exc_wd":"","fields":"title","cnum":"001","sort":"{\"webdate\":0}","ssort":"title","cl":200,"terminal":"","condition":[{"fieldName":"categorynum","equal":"003","notEqual":None,"equalList":None,"notEqualList":None,"isLike":True,"likeType":2},{"fieldName":"infoc","equal":"1307","notEqual":None,"equalList":None,"notEqualList":None,"isLike":True,"likeType":2}],"time":None,"highlights":"title","statistics":None,"unionCondition":None,"accuracy":"","noParticiple":"0","searchRange":None,"isBusiness":"1"},
+    "雄安": {"token":"","pn":0,"rn":10,"sdt":"","edt":"","wd":" ","inc_wd":"","exc_wd":"","fields":"title","cnum":"001","sort":"{\"webdate\":0}","ssort":"title","cl":200,"terminal":"","condition":[{"fieldName":"categorynum","equal":"003","notEqual":None,"equalList":None,"notEqualList":None,"isLike":True,"likeType":2},{"fieldName":"infoc","equal":"133100","notEqual":None,"equalList":None,"notEqualList":None,"isLike":True,"likeType":2}],"time":None,"highlights":"title","statistics":None,"unionCondition":None,"accuracy":"","noParticiple":"0","searchRange":None,"isBusiness":"1"},
+
 }
 
 def _check_exist(db:DB_ZB, data):
@@ -41,34 +27,31 @@ def _check_exist(db:DB_ZB, data):
     return count>0
 
 def _get_page_number(url):
-    # 简化处理，只获取前三页
-    return 3
+    # 简化处理，只获取前6页
+    return 6
 
 async def _get_data(db, page:int):
     page_session = SessionPage()
-    print("[招标公告-河北公共资源服务平台-Page:%s]"%(page))
+    print("[招标公告-%s-Page:%s]"%(source, page))
     # 获取具体的数据
     url = urllib
-    pdata = datalib[city_cfg]
-    pdata["page"] = str(page)
-    page_session.post(url, data=pdata)
+    pdata = datalib[city_cfg].copy()
+    pdata["pn"] = str(int(page*10))
+    page_session.post(url, json=pdata)
     rdata = json.loads(page_session.raw_data)
-    datas = rdata['t']['search_ZbGg']
+    datas = rdata['result']['records']
     data = []
     breaker = ContinuousDupBreaker(max_dup=3)
     for item in datas:
-        href = "https://szj.hebei.gov.cn/zbtbfwpt/infogk/newDetail.do?categoryid=101101&infoid=%s&jypt=jypt"%item['tenderbulletincode'] # 获取具体链接
-        title = item['bulletinname']
-        date = datetime.datetime.fromtimestamp(item['bulletinissuetime'] / 1000)
-
-        name = item['bulletinname']
-        money = ""
+        purchaseName = item["categoryname"]
+        if "招标" not in purchaseName and "资审" not in purchaseName and "采购" not in purchaseName: # 只获取招标公告
+            continue
+        href = "https://szj.hebei.gov.cn/hbggfwpt%s"%item['linkurl'] # 获取具体链接
+        title = item['titlenew']
+        date = datetime.datetime.strptime(item['infodate'], '%Y-%m-%d %H:%M:%S')
+        name = item['title']
         city = city_cfg
-        address = item['regioncode']
-        people = ""
-        classify = item['tenderprojectclassifycode']
-        area = get_area_byname(title+address)
-        sourcename = item['sourcename'][1:-1]
+        area = get_area_byname(title+item["infod"])
 
         _ce = _check_exist(db, {"source":source, "href":href })
         if breaker.check(_ce):
@@ -79,16 +62,13 @@ async def _get_data(db, page:int):
         d = {
             "name": name,
             "href": href,
-            "date": date,
+            "date": clear_date(date),
             "title": title,
-            "money": money,
             "city": city,
             "area": area,
-            "address": address,
-            "classify": classify,
-            "people": people,
+            "purchaseName": purchaseName,
             "source": source,
-            "source_base": sourcename,
+            "source_base": source,
             "send": False
         }
         data.append(d)
@@ -97,7 +77,7 @@ async def _get_data(db, page:int):
 
 async def get_all():
     base_url = urllib
-    print("【招标公告-河北公共资源服务平台】")
+    print("【招标公告-%s】"%source)
     # 获取有多少页
     page_num = _get_page_number(base_url)
     with DB_ZB() as db:

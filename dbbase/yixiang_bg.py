@@ -49,3 +49,11 @@ class DB_YXBG(DBBase):
 
     def close(self):
         self.db.close()
+
+    def batch_update_send_true(self, ids):
+        if not ids:
+            return
+        self.db.query(YiXiangBG) \
+            .filter(YiXiangBG.id.in_(ids)) \
+            .update({YiXiangBG.send: True}, synchronize_session=False)
+        self.db.commit()

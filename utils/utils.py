@@ -1,4 +1,5 @@
 from config import city as city_cfg
+import datetime
 area_lib = {
     "张家口": ["宣化", "下花园", "万全", "崇礼", "张北", "康保", "沽源", "尚义", "蔚县", "阳原", "怀安", "怀来", "涿鹿", "赤城", "塞北管理区", "察北管理区"],
     "雄安": ["雄县", "容城县", "安新县"]
@@ -26,3 +27,6 @@ class ContinuousDupBreaker:
         else:
             self.count = 0
         return False
+
+def clear_date(date:datetime):
+    return date.replace(hour=0, minute=0, second=0, microsecond=0)

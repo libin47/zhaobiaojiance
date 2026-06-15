@@ -2,7 +2,7 @@ from dbbase import DB_ZB, DB_Log
 from DrissionPage import SessionPage
 import datetime
 from config import city as city_cfg
-from utils.utils import get_area_byname, ContinuousDupBreaker
+from utils.utils import get_area_byname, ContinuousDupBreaker, clear_date
 import asyncio
 import traceback
 import random
@@ -77,7 +77,7 @@ async def _get_data(db, page:int):
         d = {
             "name": name,
             "href": href,
-            "date": date,
+            "date": clear_date(date),
             "title": title,
             "code": code,
             "city": city,
