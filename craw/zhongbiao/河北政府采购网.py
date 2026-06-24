@@ -318,7 +318,7 @@ async def _get_data(db, page:int, type:str):
                 "send": False
             }
             data.append(d)
-        await asyncio.sleep(random.uniform(2.5, 5.5))
+        await asyncio.sleep(random.uniform(1.5, 8.5))
     return data, "完成"
 
 

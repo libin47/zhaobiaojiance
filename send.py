@@ -3,7 +3,7 @@ import requests
 import json
 from config import keyword,ddurl_main,ddurl_debug, city
 from openai import OpenAI
-from config import openai_url, openai_key, openai_pmt, openai_model, openai_enable
+from config import openai_url, openai_key, openai_pmt, openai_model, openai_enable, send_when_start
 
 import asyncio
 from dbbase import DB_ZhongB, DB_Log, DB_ZB, DB_ZBBG, DB_YX, DB_YXBG
@@ -119,9 +119,9 @@ class SendMd(object):
             self.send_now = self.send_now + "## 【%s】    \n" % area
             self.add_now = area
         if _is_attention_ai(r["name"]):
-            self.send_now += "- [%s]👇<font color='Red'>请重点关注</font>👇    \n [%s](%s)    \n" % (r['date'].strftime("%Y-%m-%d"), r['name'], r['href'])
+            self.send_now += "- [%s]👇<font color='Red'>请重点关注</font>👇    \n [%s](%s)    \n" % (r['date'].strftime("%Y-%m-%d"), r['name'] if r['name'].strip() else r['title'], r['href'])
         else:
-            self.send_now += "- [%s][%s](%s)    \n" % (r['date'].strftime("%Y-%m-%d"), r['name'], r['href'])
+            self.send_now += "- [%s][%s](%s)    \n" % (r['date'].strftime("%Y-%m-%d"), r['name'] if r['name'].strip() else r['title'], r['href'])
         if len(self.send_now) > 15000:
             self._send_once()
 
@@ -180,10 +180,10 @@ class SendError(object):
         for s in result_source.keys():
             result_type = {}
             for r in result_source[s]:
-                if r["type"] not in result_type.keys():
-                    result_type[r["type"]] = [r]
+                if r["craw_type"] not in result_type.keys():
+                    result_type[r["craw_type"]] = [r]
                 else:
-                    result_type[r["type"]].append(r)
+                    result_type[r["craw_type"]].append(r)
             self.result[s] = {}
             for t in result_type.keys():
                 self.result[s][t] = len(result_type[t])
@@ -227,12 +227,15 @@ def _send():
 
 
 async def send():
-    t = time.localtime()
-    if t.tm_hour==8 and t.tm_min==5:
+    if send_when_start:
         _send()
-        await asyncio.sleep(3600)
-    await asyncio.sleep(59)
-    await send()
+    while True:
+        t = time.localtime()
+        if t.tm_hour==8 and t.tm_min==5:
+            _send()
+            await asyncio.sleep(3600)
+        await asyncio.sleep(59)
+
 
 
 

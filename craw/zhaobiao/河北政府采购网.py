@@ -35,7 +35,10 @@ async def _get_data(db, page:int):
     page_session = SessionPage()
     print("[招标公告-河北政府采购网-Page:%s]"%(page))
     # 获取具体的数据
-    url = urllib[city_cfg] + str(page)
+    today = datetime.date.today()
+    start = today - datetime.timedelta(days=30)
+
+    url = urllib[city_cfg] + str(page) + f"&fstarttime={start.strftime('%Y-%m-%d')}" + f"&fendtime={today.strftime('%Y-%m-%d')}"
     page_session.get(url)
     rdata = json.loads(page_session.raw_data)
     datas = rdata['data']

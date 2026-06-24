@@ -28,7 +28,7 @@ def _check_exist(db:DB_ZB, data):
 
 def _get_page_number(url):
     # 简化处理，只获取前6页
-    return 6
+    return 8
 
 async def _get_data(db, page:int):
     page_session = SessionPage()

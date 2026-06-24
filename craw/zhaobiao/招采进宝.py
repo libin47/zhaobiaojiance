@@ -79,7 +79,7 @@ async def _get_data(db, page:int, tp:str):
     pdata['pageNo'] = page
     url = urllib
     post_result = page_session.post(url, json=pdata)
-    assert post_result == True, "post请求失败"
+    assert post_result, "post请求失败"
     rdata = json.loads(page_session.raw_data)
     datas = rdata['res']['rows']
     data = []

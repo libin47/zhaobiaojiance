@@ -29,6 +29,8 @@ header = {
     "Upgrade-Insecure-Requests": "1",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.42"
 }
+send_when_start = True
+
 openai_enable = False
 openai_url = "https://api.siliconflow.cn/v1"
 openai_key = ""

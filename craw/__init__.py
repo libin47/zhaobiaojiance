@@ -11,8 +11,8 @@ import asyncio
 
 # 不搞变更了，无意义
 async def craw():
-    await asyncio.gather(get_yixiang(), get_yixiang_bg(), get_zhaobiao())
-    await asyncio.sleep(120)
-    await get_zhongbiao()
-    await asyncio.sleep(10800)
-    await craw()
+    while True:
+        await asyncio.gather(get_yixiang(), get_yixiang_bg(), get_zhaobiao())
+        await asyncio.sleep(120)
+        await get_zhongbiao()
+        await asyncio.sleep(10800)
