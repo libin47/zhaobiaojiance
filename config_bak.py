@@ -1,13 +1,10 @@
-# 环境设置
+# 环境设置，线上改成master
 # env = "master"
 env = "dev"
+# 城市，不同网站的爬取策略有所差异，除修改这里之外，craw下的文件大多也需要修改其相关url或参数
 city = "张家口"
 
-# 强调的关键词
-keyword = ["数字", "信息", "平台", "低空"]
-
-
-# 钉钉机器人
+# 钉钉webhook机器人url，debug是发送日志和错误日志的，main是大群的
 if env=="master":
     ddurl_main = ""
     ddurl_debug = ""
@@ -15,23 +12,13 @@ else:
     ddurl_main = ""
     ddurl_debug = ""
 
-
-# 请求头
-header = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-    "Cache-Control": "max-age=0",
-    "Connection": "keep-alive",
-    "Cookie": "yunsuo_session_verify=c36b1e82f4969a52767d7b3763380253",
-    "If-Modified-Since": "Mon, 14 Nov 2022 07:46:44 GMT",
-    "If-None-Match": "e58b-5ed6970e4235d",
-    "Upgrade-Insecure-Requests": "1",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.42"
-}
+# 启动程序时是否发送
 send_when_start = True
-
+# 是否使用大模型判别为需关注项目
 openai_enable = False
+# 不用大模型时所匹配的关键词
+keyword = ["数字", "信息", "平台", "低空"]
+# 大模型配置
 openai_url = "https://api.siliconflow.cn/v1"
 openai_key = ""
 openai_model = "deepseek-ai/DeepSeek-V3"
